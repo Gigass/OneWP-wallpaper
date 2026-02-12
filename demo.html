@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Flow - Live Wallpaper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* Prevent text selection */
+        }
+
+        body {
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* --- Download Button Styles --- */
+        .download-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        .download-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.1);
+        }
+
+        .download-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: rgba(255, 255, 255, 0.8);
+        }
+
+        /* --- Modal Styles --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 200;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal {
+            background: rgba(20, 20, 25, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+            color: #fff;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+
+        .close-btn:hover {
+            color: #fff;
+        }
+
+        .res-group {
+            margin-bottom: 20px;
+        }
+
+        .res-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 10px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .res-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .res-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .res-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .res-btn span.name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .res-btn span.size {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        #status-text {
+            font-size: 0.9rem;
+            color: #4facfe;
+            margin-top: 15px;
+            text-align: center;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Download Button -->
+    <button class="download-btn" id="openModalBtn" title="Download Wallpaper">
+        <svg viewBox="0 0 24 24">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+    </button>
+
+    <!-- Download Modal -->
+    <div class="modal-overlay" id="downloadModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Generate HD Wallpaper</div>
+                <button class="close-btn" id="closeModalBtn">&times;</button>
+            </div>
+            
+            <div class="res-group">
+                <span class="res-label">16:9 Standard Widescreen</span>
+                <div class="res-grid">
+                    <button class="res-btn" onclick="generateWallpaper(1920, 1080)">
+                        <span class="name">FHD (1080p)</span>
+                        <span class="size">1920 x 1080</span>
+                    </button>
+                    <button class="res-btn" onclick="generateWallpaper(2560, 1440)">
+                        <span class="name">2K (1440p)</span>
+                        <span class="size">2560 x 1440</span>
+                    </button>
+                    <button class="res-btn" onclick="generateWallpaper(3840, 2160)">
+                        <span class="name">4K UHD</span>
+                        <span class="size">3840 x 2160</span>
+                    </button>
+                    <button class="res-btn" onclick="generateWallpaper(7680, 4320)">
+                        <span class="name">8K UHD</span>
+                        <span class="size">7680 x 4320</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="res-group">
+                <span class="res-label">Ultrawide / Others</span>
+                <div class="res-grid">
+                    <button class="res-btn" onclick="generateWallpaper(2560, 1080)">
+                        <span class="name">21:9 Ultrawide</span>
+                        <span class="size">2560 x 1080</span>
+                    </button>
+                    <button class="res-btn" onclick="generateWallpaper(3440, 1440)">
+                        <span class="name">21:9 WQHD</span>
+                        <span class="size">3440 x 1440</span>
+                    </button>
+                    <button class="res-btn" onclick="generateWallpaper(1920, 1200)">
+                        <span class="name">16:10 WUXGA</span>
+                        <span class="size">1920 x 1200</span>
+                    </button>
+                    <button class="res-btn" onclick="generateWallpaper(2560, 1600)">
+                        <span class="name">16:10 WQXGA</span>
+                        <span class="size">2560 x 1600</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="status-text"></div>
+        </div>
+    </div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+    /**
+     * Core Configuration
+     */
+    const CONFIG = {
+        particleCount: 3000,      // Base particle count (based on 1080p)
+        baseSpeed: 0.2,           // Base flow speed
+        colorSpeed: 0.2,          // Color change speed
+        trailStrength: 0.03       // Trail strength (smaller value = longer trail)
+    };
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height;
+    let particlesArray = [];
+    let hue = 0; 
+
+    // --- Core Animation Logic ---
+    class Particle {
+        constructor(canvasWidth, canvasHeight, scale = 1) {
+            this.canvasW = canvasWidth;
+            this.canvasH = canvasHeight;
+            this.scale = scale; 
+            this.reset();
+        }
+
+        reset() {
+            this.x = Math.random() * this.canvasW;
+            this.y = Math.random() * this.canvasH;
+            this.size = (Math.random() * 1.5 + 0.5) * this.scale;
+            this.speedX = 0;
+            this.speedY = 0;
+            this.life = Math.random() * 100 + 50; // Life is between 50 and 150 frames
+            this.speedModifier = Math.random() * 0.5 + 0.5;
+        }
+
+        update() {
+            // Map physical coordinates back to 1x (1080p) virtual coordinate space
+            // Ensures flow field ripple size remains visually consistent across resolutions
+            const virtualX = this.x / this.scale;
+            const virtualY = this.y / this.scale;
+
+            const angle = (Math.cos(virtualX * 0.005) + Math.sin(virtualY * 0.005)) * 2;
+            
+            this.speedX += Math.cos(angle) * 0.02 * this.scale;
+            this.speedY += Math.sin(angle) * 0.02 * this.scale;
+
+            this.speedX *= 0.95; 
+            this.speedY *= 0.95;
+
+            this.x += this.speedX + Math.cos(angle) * CONFIG.baseSpeed * this.scale;
+            this.y += this.speedY + Math.sin(angle) * CONFIG.baseSpeed * this.scale;
+
+            this.life--;
+            if (this.life <= 0 || this.x < 0 || this.x > this.canvasW || this.y < 0 || this.y > this.canvasH) {
+                this.reset();
+                this.x = Math.random() * this.canvasW;
+                this.y = Math.random() * this.canvasH;
+            }
+        }
+
+        draw(context, currentHue) {
+            context.beginPath();
+            context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            
+            // Color gradient band also uses virtual coordinates for consistent visual transitions
+            const virtualX = this.x / this.scale;
+            const virtualY = this.y / this.scale;
+            const colorHue = (currentHue + (virtualX * 0.4) + (virtualY * 0.4)) % 360; 
+            
+            context.fillStyle = `hsl(${colorHue}, 85%, 60%)`;
+            context.fill();
+        }
+    }
+
+    // --- Main Canvas Logic ---
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        initParticles();
+    }
+
+    function initParticles() {
+        particlesArray = [];
+        const area = width * height;
+        const adjustedCount = Math.min(CONFIG.particleCount, Math.floor(area / 300));
+        
+        for (let i = 0; i < adjustedCount; i++) {
+            particlesArray.push(new Particle(width, height, 1));
+        }
+    }
+
+    function animate() {
+        ctx.fillStyle = `rgba(0, 0, 0, ${CONFIG.trailStrength})`;
+        ctx.fillRect(0, 0, width, height);
+        hue += CONFIG.colorSpeed;
+        ctx.globalCompositeOperation = 'lighter';
+
+        for (let i = 0; i < particlesArray.length; i++) {
+            particlesArray[i].update();
+            particlesArray[i].draw(ctx, hue);
+        }
+
+        ctx.globalCompositeOperation = 'source-over';
+        requestAnimationFrame(animate);
+    }
+
+    // --- Wallpaper Generation Logic (Density & Space Scale Correction) ---
+    function generateWallpaper(targetW, targetH) {
+        const statusEl = document.getElementById('status-text');
+        statusEl.innerText = `Rendering ${targetW}x${targetH} nebula...`;
+
+        setTimeout(() => {
+            try {
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = targetW;
+                offCanvas.height = targetH;
+                const offCtx = offCanvas.getContext('2d');
+
+                offCtx.fillStyle = '#000';
+                offCtx.fillRect(0, 0, targetW, targetH);
+
+                // Calculate scale factor based on 1080p (1920px) base width
+                const scaleFactor = targetW / 1920;
+                
+                // Ensure density at any ratio perfectly matches 1080p.
+                const areaRatio = (targetW * targetH) / (1920 * 1080);
+                const scaleRatio = scaleFactor * scaleFactor;
+                const renderCount = Math.floor(CONFIG.particleCount * (areaRatio / scaleRatio));
+
+                const renderParticles = [];
+                for(let i=0; i<renderCount; i++) {
+                    renderParticles.push(new Particle(targetW, targetH, scaleFactor));
+                }
+
+                // INCREASED WARMUP FRAMES:
+                // Raised from 40 to 180. Since particle life is 50-150 frames, 
+                // 180 frames guarantees that particles will die and respawn at completely different times,
+                // creating the staggered, varied trail lengths seen in the live preview.
+                const warmupFrames = 180; 
+                let renderHue = Math.random() * 360; 
+
+                for(let f=0; f<warmupFrames; f++) {
+                    offCtx.fillStyle = `rgba(0, 0, 0, ${CONFIG.trailStrength})`;
+                    offCtx.fillRect(0, 0, targetW, targetH);
+                    
+                    offCtx.globalCompositeOperation = 'lighter';
+                    renderHue += CONFIG.colorSpeed;
+
+                    for(let p=0; p<renderCount; p++) {
+                        renderParticles[p].update();
+                        renderParticles[p].draw(offCtx, renderHue);
+                    }
+                    offCtx.globalCompositeOperation = 'source-over';
+                }
+
+                const link = document.createElement('a');
+                link.download = `CosmicFlow_${targetW}x${targetH}.png`;
+                link.href = offCanvas.toDataURL('image/png', 0.9);
+                link.click();
+
+                statusEl.innerText = "Download started!";
+            } catch (e) {
+                console.error(e);
+                statusEl.innerText = "Generation failed. Possible out of memory.";
+            }
+        }, 100);
+    }
+
+    // --- Interaction Event Listeners ---
+    const modal = document.getElementById('downloadModal');
+    document.getElementById('openModalBtn').addEventListener('click', () => {
+        modal.classList.add('active');
+    });
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+        modal.classList.remove('active');
+        document.getElementById('status-text').innerText = '';
+    });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+            document.getElementById('status-text').innerText = '';
+        }
+    });
+
+    window.addEventListener('resize', resize);
+
+    // Start
+    resize();
+    animate();
+
+</script>
+</body>
+</html>
